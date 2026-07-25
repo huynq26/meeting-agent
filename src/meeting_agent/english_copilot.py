@@ -54,12 +54,20 @@ _REPLACEMENTS: tuple[tuple[re.Pattern[str], str, str], ...] = (
         "Turn a hesitant phrase into a confident recommendation.",
     ),
     (
-        re.compile(r"\bkind of\b", re.IGNORECASE),
+        re.compile(
+            r"\bkind of\b(?=\s+(?:unclear|confusing|difficult|hard|"
+            r"concerned|worried|unsure|hesitant|late|slow)\b)",
+            re.IGNORECASE,
+        ),
         "somewhat",
         "Replace filler wording with a more precise word.",
     ),
     (
-        re.compile(r"\bsort of\b", re.IGNORECASE),
+        re.compile(
+            r"\bsort of\b(?=\s+(?:unclear|confusing|difficult|hard|"
+            r"concerned|worried|unsure|hesitant|late|slow)\b)",
+            re.IGNORECASE,
+        ),
         "somewhat",
         "Replace filler wording with a more precise word.",
     ),
