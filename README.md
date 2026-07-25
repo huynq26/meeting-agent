@@ -50,14 +50,17 @@ that revise partial transcripts before finalizing them. It:
 - rejects delayed partials using each provider update's monotonic sequence;
 - suppresses identical partial updates and recent late retries with a bounded
   finalized-ID cache;
-- bounds active segments so abandoned partial transcripts cannot accumulate;
+- bounds active segments so abandoned partial transcript text cannot accumulate,
+  while a separate bounded cache preserves their sequence and revision metadata;
 - emits a final event even when the final text matches the latest partial; and
 - discards completed transcript text rather than building a transcript history.
 
 ```python
 from meeting_agent.realtime_copilot import RealtimeCopilot, TranscriptUpdate
 
-copilot = RealtimeCopilot(finalized_capacity=1024, active_capacity=1024)
+copilot = RealtimeCopilot(
+    finalized_capacity=1024, active_capacity=1024, ordering_capacity=1024
+)
 event = copilot.process(TranscriptUpdate("utterance-42", "I wanna help", sequence=1))
 if event is not None:
     print(event.revision, event.wording.suggestion)

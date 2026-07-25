@@ -43,15 +43,22 @@ class RealtimeCopilot:
     """
 
     def __init__(
-        self, finalized_capacity: int = 1024, active_capacity: int = 1024
+        self,
+        finalized_capacity: int = 1024,
+        active_capacity: int = 1024,
+        ordering_capacity: int = 1024,
     ) -> None:
         if finalized_capacity < 1:
             raise ValueError("finalized_capacity must be at least 1")
         if active_capacity < 1:
             raise ValueError("active_capacity must be at least 1")
+        if ordering_capacity < 1:
+            raise ValueError("ordering_capacity must be at least 1")
         self._finalized_capacity = finalized_capacity
         self._active_capacity = active_capacity
+        self._ordering_capacity = ordering_capacity
         self._active: OrderedDict[str, tuple[str, int, int]] = OrderedDict()
+        self._evicted: OrderedDict[str, tuple[int, int]] = OrderedDict()
         self._finalized: OrderedDict[str, None] = OrderedDict()
 
     def process(self, update: TranscriptUpdate) -> CoachingEvent | None:
@@ -69,6 +76,9 @@ class RealtimeCopilot:
         previous = self._active.get(segment_id)
         if previous is not None and update.sequence <= previous[1]:
             return None
+        evicted = self._evicted.get(segment_id) if previous is None else None
+        if evicted is not None and update.sequence <= evicted[0]:
+            return None
         if previous is not None and previous[0] == text:
             if update.is_final:
                 self._active.pop(segment_id)
@@ -84,7 +94,15 @@ class RealtimeCopilot:
             )
             return None
 
-        revision = 1 if previous is None else previous[2] + 1
+        previous_revision = (
+            previous[2]
+            if previous is not None
+            else evicted[1]
+            if evicted is not None
+            else 0
+        )
+        revision = previous_revision + 1
+        self._evicted.pop(segment_id, None)
         if update.is_final:
             self._active.pop(segment_id, None)
             self._remember_finalized(segment_id)
@@ -106,7 +124,20 @@ class RealtimeCopilot:
         self._active[segment_id] = (text, sequence, revision)
         self._active.move_to_end(segment_id)
         if len(self._active) > self._active_capacity:
-            self._active.popitem(last=False)
+            evicted_id, (_, evicted_sequence, evicted_revision) = (
+                self._active.popitem(last=False)
+            )
+            self._remember_ordering(evicted_id, evicted_sequence, evicted_revision)
+
+    def _remember_ordering(
+        self, segment_id: str, sequence: int, revision: int
+    ) -> None:
+        """Retain bounded ordering metadata after discarding transcript text."""
+
+        self._evicted[segment_id] = (sequence, revision)
+        self._evicted.move_to_end(segment_id)
+        if len(self._evicted) > self._ordering_capacity:
+            self._evicted.popitem(last=False)
 
     def _remember_finalized(self, segment_id: str) -> None:
         """Retain an ID only for the configured recent-retry window."""
@@ -120,4 +151,5 @@ class RealtimeCopilot:
         """Forget all state associated with the current meeting."""
 
         self._active.clear()
+        self._evicted.clear()
         self._finalized.clear()

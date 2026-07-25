@@ -96,13 +96,29 @@ def test_evicts_abandoned_active_segments() -> None:
     copilot.process(TranscriptUpdate("segment-2", "Second", 1))
     copilot.process(TranscriptUpdate("segment-3", "Third", 1))
 
+    stale = copilot.process(TranscriptUpdate("segment-1", "Stale first", 1))
     evicted = copilot.process(TranscriptUpdate("segment-1", "First again", 2))
     retained = copilot.process(TranscriptUpdate("segment-3", "Third again", 2))
 
+    assert stale is None
     assert evicted is not None
-    assert evicted.revision == 1
+    assert evicted.revision == 2
     assert retained is not None
     assert retained.revision == 2
+
+
+def test_bounds_evicted_segment_ordering_metadata() -> None:
+    copilot = RealtimeCopilot(active_capacity=1, ordering_capacity=1)
+    copilot.process(TranscriptUpdate("segment-1", "First", 1))
+    copilot.process(TranscriptUpdate("segment-2", "Second", 1))
+    copilot.process(TranscriptUpdate("segment-3", "Third", 1))
+
+    retained_retry = copilot.process(TranscriptUpdate("segment-2", "Stale", 1))
+    expired_retry = copilot.process(TranscriptUpdate("segment-1", "Expired", 1))
+
+    assert retained_retry is None
+    assert expired_retry is not None
+    assert expired_retry.revision == 1
 
 
 def test_rejects_non_positive_finalized_capacity() -> None:
@@ -113,6 +129,11 @@ def test_rejects_non_positive_finalized_capacity() -> None:
 def test_rejects_non_positive_active_capacity() -> None:
     with pytest.raises(ValueError, match="active_capacity must be at least 1"):
         RealtimeCopilot(active_capacity=0)
+
+
+def test_rejects_non_positive_ordering_capacity() -> None:
+    with pytest.raises(ValueError, match="ordering_capacity must be at least 1"):
+        RealtimeCopilot(ordering_capacity=0)
 
 
 def test_rejects_negative_sequence() -> None:
