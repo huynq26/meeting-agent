@@ -1,6 +1,6 @@
 # Meeting Agent
 
-Phase 1 focuses on a real-time English communication copilot for Zoom-style meetings. The goal is not to alter a speaker's voice; it provides private wording suggestions that help a speaker sound clearer, more natural, and more professional while the meeting continues.
+The project provides a real-time English communication copilot for Zoom-style meetings. The goal is not to alter a speaker's voice; it provides private wording suggestions that help a speaker sound clearer, more natural, and more professional while the meeting continues.
 
 ## Phase 1 MVP: English wording copilot
 
@@ -40,3 +40,35 @@ Notes:
 ## Integration shape
 
 A production Zoom integration can pass partial or finalized transcript segments into `suggest_wording`. The response can be rendered in a private web panel, desktop overlay, or companion mobile view so only the speaker sees the coaching.
+
+## Phase 2: real-time transcript sessions
+
+Phase 2 adds `RealtimeCopilot`, a provider-neutral session adapter for streams
+that revise partial transcripts before finalizing them. It:
+
+- numbers meaningful revisions so clients can replace stale suggestions;
+- rejects delayed partials using each provider update's monotonic sequence;
+- suppresses identical partial updates and recent late retries with a bounded
+  finalized-ID cache;
+- bounds active segments so abandoned partial transcript text cannot accumulate,
+  while a separate bounded cache preserves their sequence and revision metadata;
+- emits a final event even when the final text matches the latest partial; and
+- discards completed transcript text rather than building a transcript history.
+
+```python
+from meeting_agent.realtime_copilot import RealtimeCopilot, TranscriptUpdate
+
+copilot = RealtimeCopilot(
+    finalized_capacity=1024, active_capacity=1024, ordering_capacity=1024
+)
+event = copilot.process(TranscriptUpdate("utterance-42", "I wanna help", sequence=1))
+if event is not None:
+    print(event.revision, event.wording.suggestion)
+
+copilot.process(
+    TranscriptUpdate(
+        "utterance-42", "I wanna help with that.", sequence=2, is_final=True
+    )
+)
+copilot.reset()  # clear session metadata when the meeting ends
+```
