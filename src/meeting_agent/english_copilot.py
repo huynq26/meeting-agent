@@ -44,7 +44,7 @@ _REPLACEMENTS: tuple[tuple[re.Pattern[str], str, str], ...] = (
         "Use a clearer phrase for urgency.",
     ),
     (
-        re.compile(r"\bmaybe we can\b", re.IGNORECASE),
+        re.compile(r"^maybe we can\b", re.IGNORECASE),
         "I suggest we",
         "Make tentative language more direct.",
     ),
