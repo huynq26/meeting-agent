@@ -91,10 +91,13 @@ def suggest_wording(transcript_segment: str) -> WordingSuggestion:
         if count and note not in notes:
             notes.append(note)
 
-    suggestion = _normalize_spacing(suggestion)
+    normalized_suggestion = _normalize_spacing(suggestion)
+    if normalized_suggestion != suggestion:
+        notes.append("Normalize repeated whitespace for readability.")
+    suggestion = normalized_suggestion
 
-    if not notes:
-        notes.append("No wording changes suggested for this segment.")
+    if suggestion == original:
+        notes = ["No wording changes suggested for this segment."]
 
     return WordingSuggestion(
         original=original,
@@ -104,7 +107,7 @@ def suggest_wording(transcript_segment: str) -> WordingSuggestion:
 
 
 def _normalize_spacing(value: str) -> str:
-    """Normalize extra spaces introduced during replacement."""
+    """Normalize repeated whitespace in the suggested wording."""
 
     return re.sub(r"\s+", " ", value).strip()
 

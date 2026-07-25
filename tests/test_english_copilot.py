@@ -19,6 +19,14 @@ def test_suggest_wording_returns_no_change_note() -> None:
     assert result.notes == ("No wording changes suggested for this segment.",)
 
 
+def test_suggest_wording_reports_whitespace_normalization_as_change() -> None:
+    result = suggest_wording("Could  you clarify?")
+
+    assert result.original == "Could  you clarify?"
+    assert result.suggestion == "Could you clarify?"
+    assert result.notes == ("Normalize repeated whitespace for readability.",)
+
+
 def test_suggest_wording_rewrites_maybe_we_can_as_standalone_clause() -> None:
     result = suggest_wording("Maybe we can delay the release.")
 
