@@ -7,6 +7,7 @@ sequence of private coaching events without repeatedly rendering duplicates.
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass
 
 from meeting_agent.english_copilot import WordingSuggestion, suggest_wording
@@ -35,13 +36,17 @@ class RealtimeCopilot:
     """Process transcript revisions while retaining only active utterances.
 
     Completed transcript text is discarded as soon as a segment is finalized.
-    Finalized IDs are retained so late provider retries can be ignored; call
-    ``reset`` at the end of a meeting to clear all session state.
+    A bounded collection of recently finalized IDs is retained so late provider
+    retries can be ignored without allowing session metadata to grow forever.
+    Call ``reset`` at the end of a meeting to clear all session state.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, finalized_capacity: int = 1024) -> None:
+        if finalized_capacity < 1:
+            raise ValueError("finalized_capacity must be at least 1")
+        self._finalized_capacity = finalized_capacity
         self._active: dict[str, tuple[str, int]] = {}
-        self._finalized: set[str] = set()
+        self._finalized: OrderedDict[str, None] = OrderedDict()
 
     def process(self, update: TranscriptUpdate) -> CoachingEvent | None:
         """Return a coaching event, or ``None`` for duplicate/late updates."""
@@ -57,7 +62,7 @@ class RealtimeCopilot:
         if previous is not None and previous[0] == text:
             if update.is_final:
                 self._active.pop(segment_id)
-                self._finalized.add(segment_id)
+                self._remember_finalized(segment_id)
                 return CoachingEvent(
                     segment_id=segment_id,
                     revision=previous[1],
@@ -69,7 +74,7 @@ class RealtimeCopilot:
         revision = 1 if previous is None else previous[1] + 1
         if update.is_final:
             self._active.pop(segment_id, None)
-            self._finalized.add(segment_id)
+            self._remember_finalized(segment_id)
         else:
             self._active[segment_id] = (text, revision)
 
@@ -79,6 +84,14 @@ class RealtimeCopilot:
             is_final=update.is_final,
             wording=suggest_wording(text),
         )
+
+    def _remember_finalized(self, segment_id: str) -> None:
+        """Retain an ID only for the configured recent-retry window."""
+
+        self._finalized[segment_id] = None
+        self._finalized.move_to_end(segment_id)
+        if len(self._finalized) > self._finalized_capacity:
+            self._finalized.popitem(last=False)
 
     def reset(self) -> None:
         """Forget all state associated with the current meeting."""

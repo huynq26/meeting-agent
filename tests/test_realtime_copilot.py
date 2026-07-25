@@ -64,6 +64,26 @@ def test_reset_allows_segment_ids_to_be_reused_in_a_new_meeting() -> None:
     assert event.revision == 1
 
 
+def test_evicts_old_tombstones_but_suppresses_recent_retries() -> None:
+    copilot = RealtimeCopilot(finalized_capacity=2)
+    copilot.process(TranscriptUpdate("segment-1", "First", is_final=True))
+    copilot.process(TranscriptUpdate("segment-2", "Second", is_final=True))
+
+    assert copilot.process(TranscriptUpdate("segment-2", "retry")) is None
+
+    copilot.process(TranscriptUpdate("segment-3", "Third", is_final=True))
+
+    old_segment = copilot.process(TranscriptUpdate("segment-1", "Reused"))
+    assert old_segment is not None
+    assert old_segment.revision == 1
+    assert copilot.process(TranscriptUpdate("segment-3", "retry")) is None
+
+
+def test_rejects_non_positive_finalized_capacity() -> None:
+    with pytest.raises(ValueError, match="finalized_capacity must be at least 1"):
+        RealtimeCopilot(finalized_capacity=0)
+
+
 def test_rejects_blank_segment_id() -> None:
     with pytest.raises(ValueError, match="segment_id must not be blank"):
         RealtimeCopilot().process(TranscriptUpdate("  ", "Hello"))

@@ -47,14 +47,15 @@ Phase 2 adds `RealtimeCopilot`, a provider-neutral session adapter for streams
 that revise partial transcripts before finalizing them. It:
 
 - numbers meaningful revisions so clients can replace stale suggestions;
-- suppresses identical partial updates and late retries;
+- suppresses identical partial updates and recent late retries with a bounded
+  finalized-ID cache;
 - emits a final event even when the final text matches the latest partial; and
 - discards completed transcript text rather than building a transcript history.
 
 ```python
 from meeting_agent.realtime_copilot import RealtimeCopilot, TranscriptUpdate
 
-copilot = RealtimeCopilot()
+copilot = RealtimeCopilot(finalized_capacity=1024)
 event = copilot.process(TranscriptUpdate("utterance-42", "I wanna help"))
 if event is not None:
     print(event.revision, event.wording.suggestion)
